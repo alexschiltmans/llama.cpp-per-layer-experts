@@ -9,6 +9,7 @@
 #include "llama-model.h"
 #include "llama-vocab.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <unordered_set>
@@ -236,7 +237,17 @@ void llama_model_saver::add_kv_from_model() {
             hparams.swiglu_clamp_shexp.begin(), hparams.swiglu_clamp_shexp.begin() + hparams.n_layer_all));
     add_kv(LLM_KV_USE_PARALLEL_RESIDUAL,             hparams.use_par_res);
     // add_kv(LLM_KV_TENSOR_DATA_LAYOUT,                ???);
-    add_kv(LLM_KV_EXPERT_COUNT,                      hparams.n_expert);
+    {
+        // one count per layer (all n_layer_all layers, as the loader reads it) only when the layers differ
+        const auto first = hparams.n_expert_arr.begin();
+        const auto last  = first + hparams.n_layer_all;
+        if (hparams.n_expert > 0 && *std::max_element(first, last) == hparams.n_expert &&
+                std::any_of(first, last, [&](uint32_t n) { return n != hparams.n_expert; })) {
+            add_kv(LLM_KV_EXPERT_COUNT, std::vector<uint32_t>(first, last));
+        } else {
+            add_kv(LLM_KV_EXPERT_COUNT, hparams.n_expert);
+        }
+    }
     add_kv(LLM_KV_EXPERT_USED_COUNT,                 hparams.n_expert_used());
     add_kv(LLM_KV_EXPERT_SHARED_COUNT,               hparams.n_expert_shared);
     add_kv(LLM_KV_EXPERT_GROUP_COUNT,                hparams.n_expert_groups);

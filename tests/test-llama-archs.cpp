@@ -497,6 +497,14 @@ static gguf_context_ptr get_gguf_ctx(const llm_arch arch, const bool moe) {
         // with more experts than a ubatch uses, the copy of the used experts in host memory skips some of them
         ms.add_kv(LLM_KV_EXPERT_COUNT,               uint32_t(host_experts_test(arch) ? 64 : 2));
         ms.add_kv(LLM_KV_EXPERT_USED_COUNT,          uint32_t(2));
+        if (arch == LLM_ARCH_QWEN4EXP) {
+            // expert-pruned layout: the layers keep different numbers of routed experts
+            std::vector<uint32_t> n_expert_per_layer;
+            for (uint32_t il = 0; il < n_layer; il++) {
+                n_expert_per_layer.push_back(3 - il % 2);
+            }
+            ms.add_kv(LLM_KV_EXPERT_COUNT, n_expert_per_layer);
+        }
         ms.add_kv(LLM_KV_EXPERT_SHARED_COUNT,        uint32_t(1));
 
         uint32_t gating_func = 2;

@@ -113,6 +113,8 @@ struct llama_hparams {
     std::array<uint32_t, LLAMA_MAX_LAYERS> n_ff_exp_arr;
     // per-layer top-k expert routing count
     std::array<uint32_t, LLAMA_MAX_LAYERS> n_expert_used_arr;
+    // per-layer routed expert count (expert-pruned models); n_expert is the maximum
+    std::array<uint32_t, LLAMA_MAX_LAYERS> n_expert_arr;
 
     uint32_t n_layer_dense_lead = 0;
     uint32_t n_lora_q           = 0;
@@ -442,6 +444,9 @@ struct llama_hparams {
     uint32_t n_ff_exp(uint32_t il = 0) const;
 
     uint32_t n_expert_used(uint32_t il = 0) const;
+
+    // routed experts in layer il (n_expert unless the file lists a count per layer)
+    uint32_t n_expert_l(uint32_t il) const;
 
     // return the maximum n_expert_used across all layers
     uint32_t n_expert_used_max() const;
