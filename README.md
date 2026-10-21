@@ -1,3 +1,59 @@
+## Per-layer routed expert counts
+
+On this branch, `per-layer-experts`, the change is commit `1f12597d768503aac85479a708e8cc02fd5f3d2a`
+"feat(qwen4exp): load per-layer routed expert counts" on llama.cpp release b11750. It loads GGUF files
+whose layers keep different numbers of routed experts, such as
+[Schiltmans/Qwen3.8-Flash-Next-Coder-cut240-GGUF](https://huggingface.co/Schiltmans/Qwen3.8-Flash-Next-Coder-cut240-GGUF)
+(185 to 255 experts a layer). Stock llama.cpp refuses those files with
+`key qwen4exp.expert_count has wrong type arr but expected type u32`. Everything below this section is upstream's
+README.
+
+### What changed
+
+6 files, +68/-13:
+
+- `<arch>.expert_count` may be a scalar or a UINT32 array with one count per layer. `n_expert` stays the largest
+  count; files with a scalar load as before.
+- qwen4exp builds each layer's router, expert stacks and optional per-expert scale tensors with that layer's count.
+  Warmup routes to at most that count.
+- Every other architecture refuses a per-layer count with a clear error.
+- `llama-model-saver` writes the array back when the layers differ.
+- `tests/test-llama-archs.cpp`: the qwen4exp MoE case uses per-layer counts {3, 2}.
+
+### Build
+
+```sh
+git clone --branch per-layer-experts https://github.com/alexschiltmans/llama.cpp-per-layer-experts llama.cpp-per-layer-experts
+cd llama.cpp-per-layer-experts
+git checkout 1f12597d768503aac85479a708e8cc02fd5f3d2a
+cmake -B build -DGGML_METAL=ON -DCMAKE_BUILD_TYPE=Release   # Apple Silicon with Metal, the only GPU build checked
+cmake --build build --config Release -j
+```
+
+### How to check it
+
+- The change: `git diff b11750 1f12597d --stat` lists the 6 files above. The b11750 tag comes from upstream
+  (`git fetch https://github.com/ggml-org/llama.cpp.git tag b11750`).
+- The arch tests on the CPU, which need no model:
+
+  ```sh
+  cmake -B build-cpu -DGGML_METAL=OFF -DLLAMA_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+  cmake --build build-cpu --config Release -j --target test-llama-archs
+  ./build-cpu/bin/test-llama-archs -b CPU
+  ```
+
+  All 139 tests pass at this commit, the same table as b11750. The same test file built on b11750 fails the
+  per-layer case at load.
+- With the model: `llama-server -m Qwen3.8-Flash-Next-Coder-cut240-00001-of-00003.gguf ...` loads and logs
+  `n_expert = 255`; the model card gives the settings and results.
+
+Metal on Apple Silicon is the only GPU backend that has run a per-layer model. The model card's tested setup keeps all layers on the GPU;
+`--cpu-moe` runs but is outside it. CUDA was not built or tested with this change, nor were Vulkan or other GPU
+backends. Upstream's build instructions for other backends are in `docs/build.md`; they are upstream instructions,
+not verified support for per-layer models.
+
+The change is MIT, as llama.cpp (`LICENSE`).
+
 # llama.cpp
 
 ![llama](https://raw.githubusercontent.com/ggml-org/llama.brand/refs/heads/master/cover/llama-cpp/cover-llama-cpp-dark.svg)
