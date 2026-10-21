@@ -44,7 +44,7 @@ cmake --build build --config Release -j
 
   All 139 tests pass at this commit, the same table as b11750. The same test file built on b11750 fails the
   per-layer case at load.
-- With the model: `llama-server -m Qwen3.8-Flash-Next-Coder-cut240-00001-of-00003.gguf ...` loads and logs
+- With the model: `llama-server -m Qwen3.8-Flash-Next-Coder-cut240-IQ1_M-00001-of-00003.gguf ...` loads and logs
   `n_expert = 255`; the model card gives the settings and results.
 
 Metal on Apple Silicon is the only GPU backend that has run a per-layer model. The model card's tested setup keeps all layers on the GPU;
