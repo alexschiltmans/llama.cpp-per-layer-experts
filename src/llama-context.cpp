@@ -549,7 +549,13 @@ llama_context::llama_context(
         }
 
         if (cparams.moe_cache_size > 0) {
+            if (llama_moe_cache_direct_io() && cparams.n_ubatch > llama_moe_cache::max_batch) {
+                throw std::runtime_error(format("MoE cache direct I/O needs n_ubatch <= %d, larger ubatches read the mapped experts", (int) llama_moe_cache::max_batch));
+            }
             moe_cache = std::make_unique<llama_moe_cache>(model, backend_ptrs, backend_buft, cparams.moe_cache_size);
+            if (llama_moe_cache_direct_io()) {
+                moe_cache->require_batch(cparams.n_ubatch);
+            }
         }
 
         sched_reserve();

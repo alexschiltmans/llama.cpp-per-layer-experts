@@ -844,6 +844,14 @@ struct llama_model {
     // for quantize-stats only
     std::vector<std::pair<std::string, struct ggml_tensor *>> tensors_by_name;
 
+    // file and offset of the weights whose data is mapped from a model file, for readers that do not use the mapping
+    struct weight_source {
+        uint32_t file; // index in source_paths
+        size_t   offs;
+    };
+    std::vector<std::string> source_paths;
+    std::unordered_map<const ggml_tensor *, weight_source> weight_sources;
+
     // for keeping track of associated LoRA adapters
     std::unordered_set<llama_adapter_lora *> loras;
 

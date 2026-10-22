@@ -12,6 +12,9 @@ struct llama_model;
 // each layer has a slot map in host memory: when the scheduler copies it to the device, the copy callback uploads the missing experts
 class llama_moe_cache {
 public:
+    // ubatches with more tokens do not read the cache
+    static constexpr int64_t max_batch = 32;
+
     // backends are all the backends of the context, each GPU gets its own cache of the given size for the layers assigned to it
     llama_moe_cache(const llama_model & model, const std::vector<ggml_backend_t> & backends, const std::vector<ggml_backend_buffer_type_t> & bufts, size_t size);
     ~llama_moe_cache();
@@ -21,6 +24,9 @@ public:
 
     // the slot map of layer il, if its experts can be read from the cache for n_tokens tokens, nullptr otherwise
     ggml_tensor * get_slot_map(int32_t il, int64_t n_tokens, int64_t n_expert_used) const;
+
+    // direct I/O: throws if a ubatch of up to n_tokens tokens could select more experts of a cached layer than its cache has slots
+    void require_batch(int64_t n_tokens) const;
 
     // the experts of w in the cache, nullptr if w is not cached
     ggml_tensor * get_experts(const ggml_tensor * w) const;
@@ -40,3 +46,7 @@ private:
 };
 
 using llama_moe_cache_ptr = std::unique_ptr<llama_moe_cache>;
+
+// LLAMA_MOE_CACHE_DIRECT_IO=1: the cache reads the missing experts from the model files without the page cache,
+// instead of from the mapped weights, and the model files are not read ahead when they are mapped
+bool llama_moe_cache_direct_io();

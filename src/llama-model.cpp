@@ -7,6 +7,7 @@
 #include "llama-mmap.h"
 #include "llama-cparams.h"
 #include "llama-model-loader.h"
+#include "llama-moe-cache.h"
 
 #include "llama-kv-cache.h"
 #include "llama-kv-cache-iswa.h"
@@ -1903,7 +1904,11 @@ bool llama_model_base::load_tensors(llama_model_loader & ml) {
     // per-tensor activation precision policy
     prec_policy.load(ml, *this);
 
-    ml.init_mappings(true, use_mlock ? &pimpl->mlock_mmaps : nullptr);
+    // the MoE cache's direct I/O keeps the experts out of the page cache, so nothing is read ahead
+    if (llama_moe_cache_direct_io() && use_mlock) {
+        throw std::runtime_error("MoE cache direct I/O does not support mlock, it would lock the mapped experts in memory");
+    }
+    ml.init_mappings(!llama_moe_cache_direct_io(), use_mlock ? &pimpl->mlock_mmaps : nullptr);
     pimpl->mappings.reserve(ml.mappings.size());
 
     // create the backend buffers
@@ -2043,6 +2048,16 @@ bool llama_model_base::load_tensors(llama_model_loader & ml) {
     for (auto & [ctx, bufs] : ctx_bufs) {
         if (!ml.load_all_data(ctx, bufs, use_mlock ? &pimpl->mlock_mmaps : NULL, params.progress_callback, params.progress_callback_user_data)) {
             return false;
+        }
+    }
+
+    if (use_mmap_buffer && ml.paths.size() == ml.mappings.size()) {
+        source_paths = ml.paths;
+        for (const auto & [name, t] : tensors_by_name) {
+            const auto * w = ml.get_weight(name.c_str());
+            if (w != nullptr && t->data != nullptr && t->data == (const uint8_t *) ml.mappings.at(w->idx)->addr() + w->offs) {
+                weight_sources[t] = { w->idx, w->offs };
+            }
         }
     }
 
