@@ -48,11 +48,21 @@ cmake --build build --config Release -j
   `n_expert = 255`; the model card gives the settings and results.
 
 Metal on Apple Silicon is the only GPU backend that has run a per-layer model. The model card's tested setup keeps all layers on the GPU;
-`--cpu-moe` runs but is outside it. CUDA was not built or tested with this change, nor were Vulkan or other GPU
-backends. Upstream's build instructions for other backends are in `docs/build.md`; they are upstream instructions,
-not verified support for per-layer models.
+`--cpu-moe` on its own runs but is outside it (SSD streaming below uses it with the MoE cache). CUDA was not built
+or tested with this change, nor were Vulkan or other GPU backends. Upstream's build instructions for other backends
+are in `docs/build.md`; they are upstream instructions, not verified support for per-layer models.
 
-The change is MIT, as llama.cpp (`LICENSE`).
+### SSD streaming (macOS)
+
+SSD streaming keeps a MoE model's routed experts on the SSD; only a bounded GPU cache of them sits in memory. With
+`--cpu-moe`, the MoE cache (`--moe-cache-mib`) and `LLAMA_MOE_CACHE_DIRECT_IO=1`, the experts the GPU cache misses
+are read from the SSD without the page cache. `scripts/build-moe-sidecar.py` writes an optional expert-major copy of
+the experts, so the gate, up and down parts of a missed expert are one read instead of three; the path without the
+sidecar is not measured, all results use the sidecar. Tested with one model (Qwen3.8-Flash-Next-Coder cut240 GGUF)
+on one M4 Pro (48 GB), macOS 26.6. Build (pinned to commit `e2d5c9f91d574b22f46455037bc29b27665cc60f`), setup, refusals and numbers:
+[docs/moe-ssd-streaming.md](docs/moe-ssd-streaming.md).
+
+The changes are MIT, as llama.cpp (`LICENSE`).
 
 # llama.cpp
 
